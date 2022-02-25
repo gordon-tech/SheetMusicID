@@ -2,10 +2,6 @@
 作者：LJH
 日期：2021年08月10日
 """
-"""
-作者：LJH
-日期：2021年08月05日
-"""
 import numpy as np
 import matplotlib.pyplot as plt
 from mido import MidiFile, tick2second
