@@ -51,52 +51,6 @@ def decodeColumn(num):
         num = int(num/2)
     return col
 
-def Singular_DB(data, rindex):
-    for colindex in range(len(data.T)):
-        col = data.T[colindex]
-        hashint = bootlegHash(col)
-        if hashint == 0:
-            continue
-        pieceStr = curfile.split('/')[-1][:-4]
-
-        if hashint in rindex:
-            if pieceStr in rindex[hashint]:
-                rindex[hashint][pieceStr].append(colindex)
-            else:
-                rindex[hashint][pieceStr]=[colindex]
-        else:
-            rindex[hashint]={}
-            rindex[hashint][pieceStr]=[colindex]
-    return rindex
-
-def N_Gram_DB(data, rindex, N_Gram = 3):
-    for colindex in range(len(data.T)):
-        cols = []
-        try:
-            for i in range(N_Gram):
-                cols.append(data.T[colindex+i])
-        except IndexError:
-            continue
-        fp = []
-        equals_Zero = True
-        for column in cols:
-            hashint = bootlegHash(column)
-            fp.append(hashint)
-            if hashint != 0:
-                equals_Zero = False
-        if equals_Zero == True:
-            continue
-        fp = tuple(fp)
-        pieceStr = curfile.split('/')[-1][:-4]
-        if fp in rindex:
-            if pieceStr in rindex[fp]:
-                rindex[fp][pieceStr].append(colindex)
-            else:
-                rindex[fp][pieceStr]=[colindex]
-        else:
-            rindex[fp]={}
-            rindex[fp][pieceStr]=[colindex]
-    return rindex
 
 def Dynamic_N_Gram_DB(data, rindex, counts, threshold):
     for colindex in range(len(data.T)):

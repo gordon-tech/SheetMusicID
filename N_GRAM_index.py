@@ -169,8 +169,6 @@ with open(filelist, 'r') as f:
                 rindex = Singular_DB(data, rindex)
             elif mode == "N_GRAM":
                 rindex = N_Gram_DB(data, rindex, N_Gram=N)
-            elif mode == "DYNAMIC_N_GRAM":
-                rindex = Dynamic_N_Gram_DB(data, rindex, rindex_original, threshold_function)
         except:
             failed.append(curfile)
     print(failed)
