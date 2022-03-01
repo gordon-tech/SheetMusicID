@@ -1,6 +1,6 @@
 """
 作者：LJH
-日期：2021年08月05日
+日期：2021年08月10日
 """
 import numpy as np
 import matplotlib.pyplot as plt
@@ -51,52 +51,34 @@ def decodeColumn(num):
         num = int(num/2)
     return col
 
-def Singular_DB(data, rindex):
-    for colindex in range(len(data.T)):
-        col = data.T[colindex]
-        hashint = bootlegHash(col)
-        if hashint == 0:
-            continue
-        num = curfile.split('/')[-1][:-4]
 
-        if hashint in rindex:
-            if num in rindex[hashint]:
-                rindex[hashint][num].append(colindex)
-            else:
-                rindex[hashint][num]=[colindex]
-        else:
-            rindex[hashint]={}
-            rindex[hashint][num]=[colindex]
-    return rindex
-
-def N_Gram_DB(data, rindex, num, N_Gram = 3):
+def Dynamic_N_Gram_DB(data, rindex, counts, threshold):
     for colindex in range(len(data.T)):
+        N_Gram = 1
         cols = []
-        try:
-            for i in range(N_Gram):
-                cols.append(data.T[colindex+i])
-        except IndexError:
-            continue
-        fp = []
-        equals_Zero = True
-        for column in cols:
-            hashint = bootlegHash(column)
-            fp.append(hashint)
-            if hashint != 0:
-                equals_Zero = False
-        if equals_Zero == True:
-            continue
-        fp = tuple(fp)
-        if fp in rindex:
-            if num in rindex[fp]:
-                rindex[fp][num].append(colindex)
-            else:
-                rindex[fp][num]=[colindex]
-        else:
-            rindex[fp]={}
-            rindex[fp][num]=[colindex]
+        while(True):
+            try:
+                hashint = bootlegHash(data.T[colindex+N_Gram-1])
+                if hashint == 0:
+                    break
+                cols.append(hashint)
+            except IndexError:
+                break
+            fp = tuple(cols)
+            numMatches = counts[N_Gram-1][fp]
+            if numMatches < threshold or N_Gram == 4:
+                pieceStr = curfile.split('/')[-1][:-4]
+                if fp in rindex:
+                    if pieceStr in rindex[fp]:
+                        rindex[fp][pieceStr].append(colindex)
+                    else:
+                        rindex[fp][pieceStr] = [colindex]
+                else:
+                    rindex[fp] = {}
+                    rindex[fp][pieceStr] = [colindex]
+                break
+            N_Gram+=1
     return rindex
-
 
 def createCountFile(outfile, rindex):
     rindex_count = {}
@@ -111,36 +93,34 @@ def createCountFile(outfile, rindex):
         pickle.dump(rindex_count,f)
     f.close()
 
+outfile = 'experiments/indices/Dynamic_N_GRAM_ALL.pkl'
+with open(outfile,'r')as f:
+    rindex = f.load(f)
 start = time.process_time()
-rindex = {}
-filelist = 'cfg_files/db.list'
-N=1
-outfile = 'experiments/indices/N_GRAM_{}_ALL.pkl'.format(N)
-mode = "N_GRAM"
+counts = []
+filelist = 'cfg_files/pb.list'
+threshold = 20000
+for i in range(1,5):
+    print("LOADING {}".format(i))
+    count_file = 'experiments/indices/N_GRAM_{}_COUNT.pkl'.format(i)
+    with open(count_file, 'rb') as f:
+        counts.append(pickle.load(f))
+        f.flush()
+        f.close()
+
 with open(filelist, 'r') as f:
     failed = []
-    for i, curfile in enumerate(f):
+    for curfile in f:
         curfile = curfile.strip().strip('\n')
-        print("Processed:", i)
+        #print("Processed:", count)
         try:
-            num = curfile.split('/')[-1][0]
-            if(num == 'd'):
-                data, _ = getTotalBscore(curfile)
-            else:
-                with open(curfile, 'rb') as pickle_file:
-                    data = pickle.load(pickle_file)
-            if mode == "SINGULAR":
-                rindex = Singular_DB(data, rindex)
-            elif mode == "N_GRAM":
-                rindex = N_Gram_DB(data, rindex, i, N_Gram=N)
+            with open(curfile,'rb') as pickle_file:
+                data = pickle.load(pickle_file)
+            rindex = Dynamic_N_Gram_DB(data, rindex, counts, threshold)
         except:
             failed.append(curfile)
     print(failed)
 with open(outfile,'wb') as f:
     pickle.dump(rindex,f)
-if mode == "N_GRAM":
-    outfile = os.path.splitext(outfile)[0][:-3]+"COUNT.pkl"
-    createCountFile(outfile, rindex)
 end = time.process_time()
 print("the running time is {} seconds".format(end-start))
-

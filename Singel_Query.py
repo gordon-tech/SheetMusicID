@@ -157,7 +157,7 @@ def processSingleQuery(imagefile, rindex, mode="N_GRAM"):
     return pieceScores, histograms
 
 st = time.time()
-pickle_file = 'G:\experiments\indices\Dynamic_N_GRAM_ALL.pkl'
+pickle_file = 'experiments\indices\Dynamic_N_GRAM_ALL.pkl'
 print('start loading')
 with open(pickle_file, 'rb') as f:
     rindex = pickle.load(f)
