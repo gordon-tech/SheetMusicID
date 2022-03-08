@@ -52,7 +52,8 @@ def decodeColumn(num):
     return col
 
 
-def Dynamic_N_Gram_DB(data, rindex, counts, threshold):
+def Dynamic_N_Gram_DB(data, rindex, counts, num, threshold):
+    pieceNum = num
     for colindex in range(len(data.T)):
         N_Gram = 1
         cols = []
@@ -67,15 +68,14 @@ def Dynamic_N_Gram_DB(data, rindex, counts, threshold):
             fp = tuple(cols)
             numMatches = counts[N_Gram-1][fp]
             if numMatches < threshold or N_Gram == 4:
-                pieceStr = curfile.split('/')[-1][:-4]
                 if fp in rindex:
-                    if pieceStr in rindex[fp]:
-                        rindex[fp][pieceStr].append(colindex)
+                    if pieceNum in rindex[fp]:
+                        rindex[fp][pieceNum].append(colindex)
                     else:
-                        rindex[fp][pieceStr] = [colindex]
+                        rindex[fp][pieceNum] = [colindex]
                 else:
                     rindex[fp] = {}
-                    rindex[fp][pieceStr] = [colindex]
+                    rindex[fp][pieceNum] = [colindex]
                 break
             N_Gram+=1
     return rindex
@@ -99,8 +99,8 @@ fpMap = {}
 rindex_original = {}
 counts = []
 filelist = 'cfg_files/db.list'
-outfile = 'experiments/indices/Dynamic_N_GRAM_ALL.pkl'
-threshold = 20000
+outfile = 'experiments/indices/Dynamic_N_GRAM_ALL(2).pkl'
+threshold = 2000
 for i in range(1,5):
     print("LOADING {}".format(i))
     count_file = 'experiments/indices/N_GRAM_{}_COUNT.pkl'.format(i)
@@ -110,12 +110,17 @@ for i in range(1,5):
         f.close()
 with open(filelist, 'r') as f:
     failed = []
-    for curfile in f:
+    for i, curfile in enumerate(f):
         curfile = curfile.strip().strip('\n')
-        #print("Processed:", count)
+        print("Processed:", i)
         try:
-            data, _ = getTotalBscore(curfile)
-            rindex = Dynamic_N_Gram_DB(data, rindex, counts, threshold)
+            num = curfile.split('/')[-1][0]
+            if(num == 'd'):
+                data, _ = getTotalBscore(curfile)
+            else:
+                with open(curfile, 'rb') as pickle_file:
+                    data = pickle.load(pickle_file)
+            rindex = Dynamic_N_Gram_DB(data, rindex, counts, i, threshold)
         except:
             failed.append(curfile)
     print(failed)

@@ -108,7 +108,7 @@ def getOffsetDeltaDynamicStaticN_GRAM(bscore_query, rindex, Max_N = 4):
 
 
 
-def rankHistograms(offsetDict, bin_size=10):
+def rankHistograms(offsetDict, bin_size=5):
     histograms = {}
     pieceScores = []
     for key in offsetDict:
@@ -152,19 +152,20 @@ def processSingleQuery(imagefile, rindex, mode="N_GRAM"):
     # Profile & save to file
     profileEnd = time.time()
     profileDur = profileEnd - profileStart
-    print("total time:", profileDur)
+    # print("total time:", profileDur)
 
-    return pieceScores, histograms
+    # return pieceScores, histograms
+    return pieceScores, profileDur
 
-st = time.time()
-pickle_file = 'experiments\indices\Dynamic_N_GRAM_ALL.pkl'
-print('start loading')
-with open(pickle_file, 'rb') as f:
-    rindex = pickle.load(f)
-imagefile = "20210805.jpg"
-input("Press enter to continue:")
-pieceScores, histograms = processSingleQuery(imagefile, rindex, "Dynamic_Static")
-for i in range(10):
-    print(pieceScores[i])
-print(len(pieceScores))
+
+# pickle_file = 'experiments/indices/Dynamic_N_GRAM_ALL(2).pkl'
+# print('start loading')
+# with open(pickle_file, 'rb') as f:
+#     rindex = pickle.load(f)
+# imagefile = "data/queries/p2_q2.jpg"
+# input("Press enter to continue:")
+# pieceScores, histograms = processSingleQuery(imagefile, rindex, "Dynamic_Static")
+# for i in range(10):
+#     print(pieceScores[i])
+# print(len(pieceScores))
 

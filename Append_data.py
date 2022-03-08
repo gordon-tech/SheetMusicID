@@ -93,9 +93,9 @@ def createCountFile(outfile, rindex):
         pickle.dump(rindex_count,f)
     f.close()
 
-outfile = 'experiments/indices/Dynamic_N_GRAM_ALL.pkl'
-with open(outfile,'r')as f:
-    rindex = f.load(f)
+originfile = 'experiments/indices/Dynamic_N_GRAM_ALL.pkl'
+with open(originfile,'rb')as f:
+    rindex = pickle.load(f)
 start = time.process_time()
 counts = []
 filelist = 'cfg_files/pb.list'
@@ -120,6 +120,7 @@ with open(filelist, 'r') as f:
         except:
             failed.append(curfile)
     print(failed)
+outfile = 'experiments/indices/Dynamic_N_GRAM_ALL(2).pkl'
 with open(outfile,'wb') as f:
     pickle.dump(rindex,f)
 end = time.process_time()

@@ -52,8 +52,8 @@ def decodeColumn(num):
     return col
 
 def Singular_DB(data, rindex):
-    for colindex in range(len(data.T)):
-        col = data.T[colindex]
+    for colindex in range(len(data)):
+        col = data[colindex]
         hashint = bootlegHash(col)
         if hashint == 0:
             continue
@@ -70,11 +70,11 @@ def Singular_DB(data, rindex):
     return rindex
 
 def N_Gram_DB(data, rindex, num, N_Gram = 3):
-    for colindex in range(len(data.T)):
+    for colindex in range(len(data)):
         cols = []
         try:
             for i in range(N_Gram):
-                cols.append(data.T[colindex+i])
+                cols.append(data[colindex+i])
         except IndexError:
             continue
         fp = []
@@ -114,7 +114,7 @@ def createCountFile(outfile, rindex):
 start = time.process_time()
 rindex = {}
 filelist = 'cfg_files/db.list'
-N=1
+N=5
 outfile = 'experiments/indices/N_GRAM_{}_ALL.pkl'.format(N)
 mode = "N_GRAM"
 with open(filelist, 'r') as f:
@@ -129,6 +129,7 @@ with open(filelist, 'r') as f:
             else:
                 with open(curfile, 'rb') as pickle_file:
                     data = pickle.load(pickle_file)
+            data = data.T
             if mode == "SINGULAR":
                 rindex = Singular_DB(data, rindex)
             elif mode == "N_GRAM":
