@@ -99,8 +99,8 @@ fpMap = {}
 rindex_original = {}
 counts = []
 filelist = 'cfg_files/db.list'
-outfile = 'experiments/indices/Dynamic_N_GRAM_ALL(2).pkl'
-threshold = 2000
+outfile = 'experiments/indices/Dynamic_N_GRAM_ALL(10k).pkl'
+threshold = 10000
 for i in range(1,5):
     print("LOADING {}".format(i))
     count_file = 'experiments/indices/N_GRAM_{}_COUNT.pkl'.format(i)

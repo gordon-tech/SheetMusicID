@@ -158,14 +158,17 @@ def processSingleQuery(imagefile, rindex, mode="N_GRAM"):
     return pieceScores, profileDur
 
 
-# pickle_file = 'experiments/indices/Dynamic_N_GRAM_ALL(2).pkl'
-# print('start loading')
-# with open(pickle_file, 'rb') as f:
-#     rindex = pickle.load(f)
-# imagefile = "data/queries/p2_q2.jpg"
-# input("Press enter to continue:")
-# pieceScores, histograms = processSingleQuery(imagefile, rindex, "Dynamic_Static")
-# for i in range(10):
-#     print(pieceScores[i])
-# print(len(pieceScores))
+pklfile = "piece_to_num.pkl"
+with open (pklfile,'rb')as f:
+    piece_to_num = pickle.load(f)
+pickle_file = 'experiments/indices/Dynamic_N_GRAM_ALL(2k).pkl'
+print('start loading')
+with open(pickle_file, 'rb') as f:
+    rindex = pickle.load(f)
+imagefile = "p018.png"
+input("Press enter to continue:")
+pieceScores, histograms = processSingleQuery(imagefile, rindex, "Dynamic_Static")
+for i in range(20):
+    print(piece_to_num[pieceScores[i][0]],' ',pieceScores[i][1])
+print(len(pieceScores))
 
