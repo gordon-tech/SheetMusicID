@@ -20,14 +20,12 @@ from scipy.spatial import KDTree
 import seaborn as sns, pickle, librosa as lb, time, cProfile, os, os.path, pyximport
 pyximport.install()
 import multiprocessing
-imagefile = 'data/queries/p1_q1.jpg'
-midi_db_dir = 'experiments/train/db'
 thumbnailW = 100
 thumbnailH = 100
 thumbnailFilterSize = 5
 estLineSep_NumCols = 3
-estLineSep_LowerRange = 13
-estLineSep_UpperRange = 27
+estLineSep_LowerRange = 25
+estLineSep_UpperRange = 45
 estLineSep_Delta = 1
 targetLineSep = 10.0
 morphFilterHorizLineSize = 41
@@ -52,17 +50,16 @@ chordBlock_maxArea = 4.5
 chordBlock_minNotes = 2
 chordBlock_maxNotes = 4
 maxDeltaRowInitial = 50
-minNumStaves = 8
-maxNumStaves = 16
+minNumStaves = 2
+maxNumStaves = 12
 minStaveSeparation = 6 * targetLineSep
 maxDeltaRowRefined = 15
 morphFilterVertLineLength = 101
 morphFilterVertLineWidth = 7
 maxBarlineWidth = 15
-bootlegRepeatNotes = 2
-bootlegFiller = 1
-dtw_steps = [
- 1, 1, 1, 2, 2, 1]
+bootlegRepeatNotes = 1
+bootlegFiller = 0
+dtw_steps = [1, 1, 1, 2, 2, 1]
 dtw_weights = [1, 1, 2]
 
 def removeBkgdLighting(pimg, filtsz=5, thumbnailW=100, thumbnailH=100):
@@ -102,8 +99,8 @@ def estimateLineSep(pim, ncols, lrange, urange, delta):
         filt = getPenalizedCombFilter(linesep).reshape((-1, 1))
         responses[i, :, :] = convolve2d(rowMedians, filt, mode='same')
 
-    scores = np.sum(np.max(responses, axis=1), axis=1)
-    bestIdx = np.argmax(scores)
+    scores = np.sum(np.max(responses, axis=1), axis=1) #计算各个梳状滤波器的累计响应
+    bestIdx = np.argmax(scores)#找出最强的累计响应所对应的梳状滤波器
     estLineSep = lineseps[bestIdx]
     return (
      estLineSep, scores)
@@ -183,6 +180,9 @@ def computeStaveFeatureMap(img, ncols, lrange, urange, delta):
 
     return (
      featmap, stavelens, colWidth)
+     #featmap:三维张量
+     #stavelens:各个梳状滤波器对应的五线谱高度
+     #colwidth:各列宽度
 
 
 def morphFilterCircle(pimg, sz_reduce=5, sz_expand=0):
@@ -355,18 +355,20 @@ def getNoteheadInfo(bboxes):
 
 
 def getEstStaffLineLocs(featmap, nhlocs, stavelens, colWidth, deltaRowMax, globalOffset=0):
+    #preds: [(五线谱最低高度，五线谱最高高度，符头中心坐标x值，符头中心坐标y值，梳状滤波器索引),...]
     preds = []
     if np.isscalar(globalOffset):
         globalOffset = [
          globalOffset] * len(nhlocs)
     for i, nhloc in enumerate(nhlocs):
-        r = int(np.round(nhloc[0]))
-        c = int(np.round(nhloc[1]))
+        r = int(np.round(nhloc[0])) #垂直方向
+        c = int(np.round(nhloc[1])) #水平方向
         rupper = min(r + deltaRowMax + 1 + globalOffset[i], featmap.shape[1])
         rlower = max(r - deltaRowMax + globalOffset[i], 0)
         featmapIdx = c // colWidth
-        regCurrent = np.squeeze(featmap[:, rlower:rupper, featmapIdx])
+        regCurrent = np.squeeze(featmap[:, rlower:rupper, featmapIdx]) #提取局部特征图
         mapidx, roffset = np.unravel_index(regCurrent.argmax(), regCurrent.shape)
+        #mapidx为梳状滤波器索引
         rstart = rlower + roffset
         rend = rstart + stavelens[mapidx] - 1
         preds.append((rstart, rend, c, r, mapidx))
@@ -388,7 +390,8 @@ def visualizeEstStaffLines(preds, arr):
 
 
 def estimateStaffMidpoints(preds, clustersMin, clustersMax, threshold):
-    r = np.array([0.5 * (tup[0] + tup[1]) for tup in preds])
+    #preds: [(五线谱最低高度，五线谱最高高度，符头中心坐标x值，符头中心坐标y值，梳状滤波器索引),...]
+    r = np.array([0.5 * (tup[0] + tup[1]) for tup in preds]) #获取五线谱的中间线
     models = []
     for numClusters in range(clustersMin, clustersMax + 1):
         kmeans = KMeans(n_clusters=numClusters, n_init=1, random_state=0).fit(r.reshape(-1, 1))
@@ -452,6 +455,7 @@ def visualizeClusters(arr, nhlocs, clusters):
 
 
 def estimateNoteLabels(preds):
+    #preds: [(五线谱最低高度，五线谱最高高度，符头中心坐标x值，符头中心坐标y值，梳状滤波器索引),...]
     nhvals = []
     for i, (rstart, rend, c, r, filtidx) in enumerate(preds):
         staveMidpt = 0.5 * (rstart + rend)
@@ -509,7 +513,7 @@ def determineStaveGrouping(staveMidpts, vlines):
             map_B[staveIdx] = -1
 
     if N > 2:
-        evidence_A = np.median(elems_A)
+        evidence_A = np.median(elems_A) #计算均值
         evidence_B = np.median(elems_B)
         if evidence_A > evidence_B:
             mapping = map_A
@@ -540,6 +544,7 @@ def clusterNoteheads(staveIdxs, mapping):
 
 
 def generateSingleBootlegLine(nhdata, clusterR, clusterL, minColDiff, repeatNotes=1, filler=1):
+    #nhdata = [(符头中心y,符头中心x,符头和相对五线中心的距离,符头所在的行数),]
     notes = [tup for tup in nhdata if tup[3] == clusterR or tup[3] == clusterL]
     notes = sorted(notes, key=(lambda tup: (tup[1], tup[0])))
     collapsed = collapseSimultaneousEvents(notes, minColDiff)
@@ -579,6 +584,7 @@ def collapseSimultaneousEvents(notes, minColDiff):
 
 
 def constructBootlegScore(noteEvents, clusterIndexRH, clusterIndexLH, repeatNotes=1, filler=1):
+    #noteEvents为一行中所有同时事件的合集
     rh_dim = 34
     lh_dim = 28
     rh = []
@@ -639,6 +645,8 @@ def visualizeBootlegScore(bs, lines):
 
 
 def generateQueryBootlegScore(nhdata, pairings, repeatNotes=1, filler=1, minColDiff=10):
+    #nhdata = [(符头中心y,符头中心x,符头和相对五线中心的距离,符头所在的行数),]
+    #pairings 存放tuple的列表 tuple表示出哪两行处于同一系统中
     allScores = []
     allEvents = []
     globIndices = []
@@ -754,88 +762,6 @@ def visualizeAlignedBScores(s1, s2, wp, lines):
     allLines.extend(np.array(lines) + s1.shape[0])
     visualizeLongBootlegScore(stacked, allLines)
 
-
-def processQueryPDF(imagefile):
-    thumbnailW = 100
-    thumbnailH = 100
-    thumbnailFilterSize = 5
-    estLineSep_NumCols = 3
-    estLineSep_LowerRange = 13
-    estLineSep_UpperRange = 45
-    estLineSep_Delta = 1
-    targetLineSep = 10.0
-    morphFilterHorizLineSize = 41
-    notebarFiltLen = 3
-    notebarRemoval = 0.9
-    calcStaveFeatureMap_NumCols = 10
-    calcStaveFeatureMap_LowerRange = 8.5
-    calcStaveFeatureMap_UpperRange = 11.75
-    calcStaveFeatureMap_Delta = 0.25
-    morphFilterCircleSizeReduce = 5
-    morphFilterCircleSizeExpand = 5
-    notedetect_minarea = 50
-    notedetect_maxarea = 200
-    noteTemplateSize = 21
-    notedetect_tol_ratio = 0.4
-    chordBlock_minH = 1.25
-    chordBlock_maxH = 4.25
-    chordBlock_minW = 0.8
-    chordBlock_maxW = 2.25
-    chordBlock_minArea = 1.8
-    chordBlock_maxArea = 4.5
-    chordBlock_minNotes = 2
-    chordBlock_maxNotes = 4
-    maxDeltaRowInitial = 50
-    minNumStaves = 4
-    maxNumStaves = 16
-    minStaveSeparation = 6 * targetLineSep
-    maxDeltaRowRefined = 15
-    morphFilterVertLineLength = 101
-    morphFilterVertLineWidth = 7
-    maxBarlineWidth = 15
-    bootlegRepeatNotes = 2
-    bootlegFiller = 1
-    dtw_steps = [
-     1, 1, 1, 2, 2, 1]
-    dtw_weights = [1, 1, 2]
-    print('Processing {}'.format(imagefile))
-    profileStart = time.time()
-    pim1 = Image.open(imagefile).convert('L')
-    pim2 = removeBkgdLighting(pim1, thumbnailFilterSize, thumbnailW, thumbnailH)
-    linesep, scores = estimateLineSep(pim2, estLineSep_NumCols, estLineSep_LowerRange, estLineSep_UpperRange, estLineSep_Delta)
-    targetH, targetW = calcResizedDimensions(pim2, linesep, targetLineSep)
-    if targetW:
-        if targetH == 0:
-            return np.zeros((62, 1))
-    pim2 = pim2.resize((targetW, targetH))
-    X2 = getNormImage(pim2)
-    hlines = isolateStaffLines(X2, morphFilterHorizLineSize, notebarFiltLen, notebarRemoval)
-    featmap, stavelens, columnWidth = computeStaveFeatureMap(hlines, calcStaveFeatureMap_NumCols, calcStaveFeatureMap_LowerRange, calcStaveFeatureMap_UpperRange, calcStaveFeatureMap_Delta)
-    im3 = morphFilterCircle(pim2, morphFilterCircleSizeReduce, morphFilterCircleSizeExpand)
-    keypoints, im_with_keypoints = detectNoteheadBlobs(im3, notedetect_minarea, notedetect_maxarea)
-    X3 = getNormImage(im3)
-    ntemplate, numCrops = getNoteTemplate(X3, keypoints, noteTemplateSize)
-    chordBlockSpecs = (chordBlock_minH, chordBlock_maxH, chordBlock_minW, chordBlock_maxW, chordBlock_minArea, chordBlock_maxArea, chordBlock_minNotes, chordBlock_maxNotes)
-    notes, img_binarized_notes = adaptiveNoteheadDetect(X3, ntemplate, notedetect_tol_ratio, chordBlockSpecs)
-    if len(notes) < maxNumStaves:
-        return np.zeros((62, 1))
-    else:
-        nhlocs, nhlen_est, nhwidth_est = getNoteheadInfo(notes)
-        estStaffLineLocs, sfiltlen = getEstStaffLineLocs(featmap, nhlocs, stavelens, columnWidth, maxDeltaRowInitial, int(-2 * targetLineSep))
-        staveMidpts = estimateStaffMidpoints(estStaffLineLocs, minNumStaves, maxNumStaves, minStaveSeparation)
-        staveIdxs, nhRowOffsets = assignNoteheadsToStaves(nhlocs, staveMidpts)
-        estStaffLineLocs, sfiltlen = getEstStaffLineLocs(featmap, nhlocs, stavelens, columnWidth, maxDeltaRowRefined, (nhRowOffsets - 2 * targetLineSep).astype(np.int))
-        nhvals = estimateNoteLabels(estStaffLineLocs)
-        vlines = isolateBarlines(X2, morphFilterVertLineLength, morphFilterVertLineWidth, maxBarlineWidth)
-        staveMapping, evidence = determineStaveGrouping(staveMidpts, vlines)
-        nhclusters, clusterPairs = clusterNoteheads(staveIdxs, staveMapping)
-        if clusterPairs == []:
-            return np.zeros((62, 1))
-        nhdata = [(int(np.round(nhlocs[i][0])), int(np.round(nhlocs[i][1])), nhvals[i], nhclusters[i]) for i in range(len(nhlocs))]
-        bscore_query, events, eventIndices, staffLinesBoth = generateQueryBootlegScore(nhdata, clusterPairs, bootlegRepeatNotes, bootlegFiller, minColDiff=nhwidth_est)
-        return bscore_query
-
-
 def processQuery(imagefile):
     thumbnailW = 100
     thumbnailH = 100
@@ -889,32 +815,44 @@ def processQuery(imagefile):
         if targetH == 0:
             return np.zeros((62, 1))
     pim2 = pim2.resize((targetW, targetH))
+
+    #谱线特征
     X2 = getNormImage(pim2)
     hlines = isolateStaffLines(X2, morphFilterHorizLineSize, notebarFiltLen, notebarRemoval)
     featmap, stavelens, columnWidth = computeStaveFeatureMap(hlines, calcStaveFeatureMap_NumCols, calcStaveFeatureMap_LowerRange, calcStaveFeatureMap_UpperRange, calcStaveFeatureMap_Delta)
-    im3 = morphFilterCircle(pim2, morphFilterCircleSizeReduce, morphFilterCircleSizeExpand)
-    keypoints, im_with_keypoints = detectNoteheadBlobs(im3, notedetect_minarea, notedetect_maxarea)
-    X3 = getNormImage(im3)
+
+    #符头检测
+    pim3 = morphFilterCircle(pim2, morphFilterCircleSizeReduce, morphFilterCircleSizeExpand)
+    keypoints, im_with_keypoints = detectNoteheadBlobs(pim3, notedetect_minarea, notedetect_maxarea)
+    X3 = getNormImage(pim3)
     ntemplate, numCrops = getNoteTemplate(X3, keypoints, noteTemplateSize)
     chordBlockSpecs = (chordBlock_minH, chordBlock_maxH, chordBlock_minW, chordBlock_maxW, chordBlock_minArea, chordBlock_maxArea, chordBlock_minNotes, chordBlock_maxNotes)
     notes, img_binarized_notes = adaptiveNoteheadDetect(X3, ntemplate, notedetect_tol_ratio, chordBlockSpecs)
+
+
     if len(notes) < maxNumStaves:
         return np.zeros((62, 1))
     else:
+        #预测音符值
         nhlocs, nhlen_est, nhwidth_est = getNoteheadInfo(notes)
         estStaffLineLocs, sfiltlen = getEstStaffLineLocs(featmap, nhlocs, stavelens, columnWidth, maxDeltaRowInitial, int(-2 * targetLineSep))
         staveMidpts = estimateStaffMidpoints(estStaffLineLocs, minNumStaves, maxNumStaves, minStaveSeparation)
         staveIdxs, nhRowOffsets = assignNoteheadsToStaves(nhlocs, staveMidpts)
         estStaffLineLocs, sfiltlen = getEstStaffLineLocs(featmap, nhlocs, stavelens, columnWidth, maxDeltaRowRefined, (nhRowOffsets - 2 * targetLineSep).astype(np.int))
-        nhvals = estimateNoteLabels(estStaffLineLocs)
+        nhvals = estimateNoteLabels(estStaffLineLocs) #符头相对于五线中心的值
+
+        #对符头和谱线聚类
         vlines = isolateBarlines(X2, morphFilterVertLineLength, morphFilterVertLineWidth, maxBarlineWidth)
         staveMapping, evidence = determineStaveGrouping(staveMidpts, vlines)
         nhclusters, clusterPairs = clusterNoteheads(staveIdxs, staveMapping)
+
         if clusterPairs == []:
             return np.zeros((62, 1))
+        #生成特征矩阵
         nhdata = [(int(np.round(nhlocs[i][0])), int(np.round(nhlocs[i][1])), nhvals[i], nhclusters[i]) for i in range(len(nhlocs))]
         bscore_query, events, eventIndices, staffLinesBoth = generateQueryBootlegScore(nhdata, clusterPairs, bootlegRepeatNotes, bootlegFiller, minColDiff=nhwidth_est)
-        return bscore_query
+        profileEnd = time.time()
+        return bscore_query, len(notes), profileEnd-profileStart
 
 
 def saveToFile(outfile, imagefile, segment, dur):

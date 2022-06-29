@@ -165,10 +165,12 @@ pickle_file = 'experiments/indices/Dynamic_N_GRAM_ALL(2k).pkl'
 print('start loading')
 with open(pickle_file, 'rb') as f:
     rindex = pickle.load(f)
-imagefile = "p018.png"
-input("Press enter to continue:")
-pieceScores, histograms = processSingleQuery(imagefile, rindex, "Dynamic_Static")
-for i in range(20):
-    print(piece_to_num[pieceScores[i][0]],' ',pieceScores[i][1])
-print(len(pieceScores))
-
+# imagelist = ["p11_q10","p11_q8","p51_q9","p65_q10","p65_q3","p65_q4"]
+imagelist = ["p1_q1"]
+for x in imagelist:
+    imagefile = "data/queries/"+x+".jpg"
+    pieceScores, profileDur = processSingleQuery(imagefile, rindex, "Dynamic_Static")
+    for i in range(10):
+        print(piece_to_num[pieceScores[i][0]],' ',pieceScores[i][1])
+    print(len(pieceScores))
+    print(profileDur)
